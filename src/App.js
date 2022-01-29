@@ -24,8 +24,11 @@ const auth = firebase.auth();
 const firestore = firebase.firestore();
 
 function App() {
-
   const [user] = useAuthState(auth);
+
+  const messagesRef = firestore.collection('messages');
+  const query = messagesRef.orderBy('createdAt', 'desc').limit(25);
+  const [messages] = useCollectionData(query, { idField: 'id' });
 
   return (
     <div className="App">
@@ -35,7 +38,7 @@ function App() {
       </header>
 
       <section>
-        {user ? <ChatRoom /> : <SignIn />}
+        {user ? <ChatRoom dataSources={messages}/> : <SignIn />}
       </section>
 
     </div>
@@ -49,39 +52,27 @@ function SignIn() {
     auth.signInWithPopup(provider);
   }
 
-  return (
-    <>
-      <button className="sign-in" onClick={signInWithGoogle}>Sign in with Google</button>
-    </>
-  )
-
+  return <button className="sign-in" onClick={signInWithGoogle}>Sign in with Google</button>
 }
 
 function SignOut() {
-  return auth.currentUser && (
-    <button className="sign-out" onClick={() => auth.signOut()}>Sign Out</button>
-  )
+  return auth.currentUser && <button className="sign-out" onClick={() => auth.signOut()}>Sign Out</button>
 }
 
 
-function ChatRoom() {
+function ChatRoom({ dataSources }) {
   const dummy = useRef();
-  const messagesRef = firestore.collection('messages');
-  const query = messagesRef.orderBy('createdAt', 'desc').limit(25);
-
-  const [messages] = useCollectionData(query, { idField: 'id' });
+  const [messages, setMessages] = useState(dataSources || [])
 
   useEffect(() => {
     dummy.current.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
   
-
   const [formValue, setFormValue] = useState('');
   const [messLoading, setMessLoading] = useState(false);
 
-
   const sendMessage = async (e) => {
-    setMessLoading(true)
+    setMessLoading(true);
     e.preventDefault();
 
     const { uid, photoURL } = auth.currentUser;
@@ -94,50 +85,43 @@ function ChatRoom() {
       text: formValue,
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       uid,
-      photoURL
+      photoURL,
     })
     
-    setMessLoading(false)
+    setMessages([...messages, formValue])
+    setMessLoading(false);
   }
 
-  return (<>
-    <main>
+  return (
+    <>
+      <main>
+        { messages && messages.reverse().map(msg => <ChatMessage key={msg.id} message={msg} />) }
+        <span ref={dummy}></span>
+      </main>
 
-      {messages && messages.reverse().map(msg => <ChatMessage key={msg.id} message={msg} />)}
-
-      <span ref={dummy}></span>
-
-    </main>
-
-    <form onSubmit={sendMessage}>
-
-      <input value={formValue} onChange={(e) => setFormValue(e.target.value)} placeholder="say something nice" />
-
-      {
-        
-          <button type="submit" disabled={!formValue}>
-            {
-              messLoading
-              ? <LoadingOutlined style={{ color: '#0b93f6' }}/>
-              : <SendOutlined style={{ color: '#0b93f6' }}/>
-            }
-          </button>
-      }
-
-    </form>
-  </>)
+      <form onSubmit={sendMessage}>
+        <input value={formValue} onChange={(e) => setFormValue(e.target.value)} placeholder="say something nice" />
+        <button type="submit" disabled={!formValue}>
+          {
+            messLoading
+            ? <LoadingOutlined style={{ color: '#0b93f6' }}/>
+            : <SendOutlined style={{ color: '#0b93f6' }}/>
+          }
+        </button>
+      </form>
+    </>
+  )
 }
 
 
 function ChatMessage(props) {
   const { text, uid, photoURL } = props.message;
-
   const messageClass = uid === auth.currentUser.uid ? 'sent' : 'received';
 
   return (
     <div className={`message ${messageClass}`}>
       <img src={photoURL || 'https://api.adorable.io/avatars/23/abott@adorable.png'} />
-      <div>{text}</div>
+      <div>{ text }</div>
     </div>
   )
 }
