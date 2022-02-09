@@ -9,6 +9,7 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import { useCollectionData } from 'react-firebase-hooks/firestore';
 
 import { LoadingOutlined, SendOutlined } from '@ant-design/icons';
+import userEvent from '@testing-library/user-event';
 
 firebase.initializeApp({
   apiKey: "AIzaSyBEncGhCS5YElaxPuEVEvWqzqlcyDkNMoU",
@@ -26,10 +27,6 @@ const firestore = firebase.firestore();
 function App() {
   const [user] = useAuthState(auth);
 
-  const messagesRef = firestore.collection('messages');
-  const query = messagesRef.orderBy('createdAt', 'desc').limit(25);
-  const [messages] = useCollectionData(query, { idField: 'id' });
-
   return (
     <div className="App">
       <header>
@@ -38,7 +35,10 @@ function App() {
       </header>
 
       <section>
-        {user ? <ChatRoom dataSources={messages}/> : <SignIn />}
+        {
+          user
+              ? <ChatRoom/>
+            : <SignIn />}
       </section>
 
     </div>
@@ -60,9 +60,22 @@ function SignOut() {
 }
 
 
-function ChatRoom({ dataSources }) {
+function ChatRoom() {
   const dummy = useRef();
-  const [messages, setMessages] = useState(dataSources || [])
+  const messagesRef = firestore.collection('messages');
+  const query = messagesRef.orderBy('createdAt', 'desc').limit(25);
+  const [messagesRaw] = useCollectionData(query, { idField: 'id' });
+  const [loading, setLoading] = useState(true)
+  const [messages, setMessages] = useState([])
+
+  useEffect(() => {
+    setMessages(messagesRaw)
+  }, [])
+
+  useEffect(() => {
+    setMessages(messagesRaw)
+    messages?.length && setLoading(false)
+  }, [messagesRaw])
 
   useEffect(() => {
     dummy.current.scrollIntoView({ behavior: 'smooth' });
@@ -94,10 +107,14 @@ function ChatRoom({ dataSources }) {
 
   return (
     <>
-      <main>
-        { messages && messages.reverse().map(msg => <ChatMessage key={msg.id} message={msg} />) }
-        <span ref={dummy}></span>
-      </main>
+      {
+        loading
+        ? <main>
+          { messages?.length && messages.reverse().map(msg => <ChatMessage key={msg.id} message={msg} />)}
+          <span ref={dummy}></span>
+        </main>
+        : <LoadingOutlined style={{ color: '#0b93f6' }}/>
+      }
 
       <form onSubmit={sendMessage}>
         <input value={formValue} onChange={(e) => setFormValue(e.target.value)} placeholder="say something nice" />
